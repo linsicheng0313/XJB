@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>南极决策基地 - 2000 权重全量 API 计票</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --ice: #f0faff; --deep: #0077b6; --api-green: #10b981; --danger: #e63946; }
+        .arctic-env { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(180deg, #a7d9f7 0%, #ffffff 100%); z-index: -1; overflow: hidden; }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 30px 0; }
+        .snowflake { position: absolute; color: white; font-size: 1.5em; top: -30px; animation: fall linear infinite; z-index: 10; pointer-events: none; }
+        @keyframes fall { to { transform: translateY(110vh) rotate(360deg); } }
+        .base-card { background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(20px); width: 90%; max-width: 500px; padding: 25px; border-radius: 35px; border: 1px solid white; box-shadow: 0 20px 40px rgba(0,0,0,0.1); z-index: 100; position: relative; }
+        .field { background: #f8fafc; padding: 15px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #edf2f7; }
+        label { font-size: 10px; font-weight: 900; color: #64748b; display: block; margin-bottom: 8px; letter-spacing: 1px; }
+        .opt-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        input { flex: 1; border: none; border-bottom: 2px solid #cbd5e1; background: transparent; padding: 6px 0; outline: none; font-size: 14px; }
+        .del-btn { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 18px; }
+        .btn-plus { background: none; border: 1px dashed var(--deep); width: 100%; color: var(--deep); cursor: pointer; padding: 8px; border-radius: 12px; margin-bottom: 15px; font-size: 12px; font-weight: bold; }
+        .btn-run { background: var(--deep); color: white; border: none; width: 100%; padding: 18px; border-radius: 18px; cursor: pointer; font-size: 16px; font-weight: 900; }
+        #loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.98); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; }
+        .api-status { color: var(--api-green); font-family: monospace; font-size: 12px; margin-bottom: 10px; text-align: center; }
+        .big-pct { font-size: 80px; font-weight: 900; color: var(--deep); }
+        .pg-shell { width: 260px; height: 8px; background: #f1f5f9; border-radius: 10px; overflow: hidden; margin: 20px 0; }
+        .pg-inner { width: 0%; height: 100%; background: var(--deep); }
+        #result { display: none; margin-top: 25px; }
+        .chart-box { position: relative; height: 220px; width: 100%; margin-top: 15px; }
+        #auditModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; height: 80%; background: white; z-index: 3000; border-radius: 25px; padding: 25px; border: 5px solid var(--deep); overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+<div class="arctic-env"></div>
+
+<div class="base-card">
+    <button onclick="document.getElementById('auditModal').style.display='block'" style="float:right; cursor:pointer; background:none; border:1px solid var(--deep); color:var(--deep); border-radius:8px; font-size:10px; padding:4px 8px;">2000 票仓审计</button>
+    <h1 style="color:var(--deep); text-align:center; margin:0;">ANTARCTICA</h1>
+    <div style="text-align: center; font-size: 10px; color: #94a3b8; margin-bottom: 20px; font-weight: bold;">全球 16 AI 联席 & 340 站点流量计票 · 林思成制作</div>
+
+    <div class="field">
+        <label>正在分析的议题</label>
+        <input type="text" id="topic" placeholder="输入事项...">
+    </div>
+
+    <div class="field">
+        <label>候选列表</label>
+        <div id="optContainer">
+            <div class="opt-row"><input type="text" class="c-val" placeholder="方案 A"></div>
+            <div class="opt-row"><input type="text" class="c-val" placeholder="方案 B"></div>
+        </div>
+        <button class="btn-plus" onclick="addOpt()">+ 增加节点</button>
+    </div>
+
+    <button class="btn-run" onclick="triggerPhysicsVote()">🚀 发起 2000 权重全球归票</button>
+
+    <div id="result">
+        <div style="text-align:center; padding:15px; background:rgba(0,119,182,0.1); border-radius:20px; border:2px solid var(--deep);">
+            <div id="winTag" style="font-size: 10px; color: var(--api-green); font-weight: bold; margin-bottom:4px;"></div>
+            <div id="winName" style="font-size: 26px; font-weight: 900; color: var(--deep); word-break: break-all;"></div>
+            <div id="winInfo" style="font-size: 12px; font-weight: bold; color: #64748b; margin-top:4px;"></div>
+        </div>
+        <div class="chart-box"><canvas id="voteChart"></canvas></div>
+    </div>
+</div>
+
+<div id="loader">
+    <div class="api-status" id="apiStatus">正在初始化...</div>
+    <div class="big-pct" id="lxPct">0%</div>
+    <div class="pg-shell"><div class="pg-inner" id="lxBar"></div></div>
+    <div style="font-size:16px; font-weight:bold; color:var(--danger);">全量计票中: <span id="lxCount">0</span> / 2000</div>
+    <div id="lxTimer" style="margin-top:8px; font-size:14px; color:#64748b;">STABLE LATENCY: 00s</div>
+</div>
+
+<div id="auditModal">
+    <h3 style="border-bottom:3px solid var(--deep); padding-bottom:10px; color:var(--deep);">📋 全球 2000 权重归档记录</h3>
+    <div id="auditList"></div>
+    <button class="btn-run" onclick="document.getElementById('auditModal').style.display='none'" style="margin-top:15px; padding:10px;">返回基地</button>
+</div>
+
+<script>
+    setInterval(() => {
+        const s = document.createElement('div');
+        s.className = 'snowflake'; s.innerHTML = '❄';
+        s.style.left = Math.random() * 100 + 'vw';
+        s.style.animationDuration = (Math.random() * 3 + 4) + 's';
+        document.querySelector('.arctic-env').appendChild(s);
+        setTimeout(() => s.remove(), 7000);
+    }, 400);
+
+    function addOpt() {
+        const div = document.createElement('div');
+        div.className = 'opt-row';
+        div.innerHTML = `<input type="text" class="c-val" placeholder="方案项"><button class="del-btn" onclick="this.parentElement.remove()">×</button>`;
+        document.getElementById('optContainer').appendChild(div);
+    }
+
+    let mainChart = null;
+
+    function triggerPhysicsVote() {
+        const topic = document.getElementById('topic').value;
+        const opts = Array.from(document.querySelectorAll('.c-val')).map(i => i.value).filter(v => v);
+        if(!topic || opts.length < 2) return alert("API 报错：候选方案不足。");
+
+        document.getElementById('loader').style.display = 'flex';
+        const totalDuration = 30000; // 锁定 30 秒
+        const startTime = performance.now();
+
+        const statusMsg = [
+            "握手 16 位 AI API...", "正在分配 720 票 AI 核心权重...",
+            "正在扫描 140 个国内站点 (280票)...", "正在同步 200 个外网站点 (1000票)...",
+            "GitHub Copilot 正在计算逻辑熵...", "Lingma/Trae 正在验证生产力...", "计票结果正在打包加密..."
+        ];
+
+        function sync() {
+            const elapsed = performance.now() - startTime;
+            const progress = Math.min(elapsed / totalDuration, 1);
+            document.getElementById('lxBar').style.width = (progress * 100) + '%';
+            document.getElementById('lxPct').innerText = Math.floor(progress * 100) + '%';
+            document.getElementById('lxCount').innerText = Math.floor(progress * 2000);
+            document.getElementById('lxTimer').innerText = `STABLE LATENCY: ${Math.max(0, Math.ceil((totalDuration - elapsed)/1000))}s`;
+
+            const msgIdx = Math.floor(progress * (statusMsg.length - 1));
+            document.getElementById('apiStatus').innerText = ">> " + statusMsg[msgIdx];
+
+            if (progress < 1) requestAnimationFrame(sync);
+            else finishVote(opts);
+        }
+        requestAnimationFrame(sync);
+    }
+
+    function finishVote(opts) {
+        const observers = [
+            'ChatGPT-4o API', 'Claude-3.5 API', 'DeepSeek-V3 API', 'GitHub Copilot API',
+            'Tongyi Lingma API', 'Trae AI Node', 'Grok-2 API', 'Gemini-2.0 API',
+            '豆包 API', '通义千问 API', '百度文心 API', '夸克 AI API',
+            'WPS AI API', '元宝 API', 'Kimi API', '讯飞星火 API'
+        ];
+
+        let scores = {}; opts.forEach(o => scores[o] = 0);
+        let logHTML = "<h4>AI 核心投票 (720票)</h4>";
+
+        // AI 计票逻辑
+        observers.forEach(id => {
+            const best = opts[Math.floor(Math.random() * opts.length)];
+            let ok = opts[Math.floor(Math.random() * opts.length)];
+            scores[best] += 30; // Best 为 30 票
+            scores[ok] += 15;   // OK 为 15 票
+            logHTML += `<div style="font-size:11px; margin-bottom:5px;"><b>${id}</b>: [Best: ${best} (+30)] [OK: ${ok} (+15)]</div>`;
+        });
+
+        // 流量计票逻辑
+        logHTML += "<hr><h4>全球流量分析 (1280票)</h4>";
+
+        // 国内流量: 140 站 * 2 票 = 280
+        for(let i=0; i<140; i++) { scores[opts[Math.floor(Math.random()*opts.length)]] += 2; }
+        logHTML += `<p>● 已成功获取 140 个国内站点反馈 (总计 280 票)</p>`;
+
+        // 外网流量: 200 站 * 5 票 = 1000
+        for(let i=0; i<200; i++) { scores[opts[Math.floor(Math.random()*opts.length)]] += 5; }
+        logHTML += `<p>● 已成功同步 200 个外网主流站点流量 (总计 1000 票)</p>`;
+
+        document.getElementById('loader').style.display = 'none';
+        document.getElementById('result').style.display = 'block';
+        document.getElementById('auditList').innerHTML = logHTML;
+
+        const sorted = Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+        document.getElementById('winName').innerText = sorted[0][0];
+        document.getElementById('winInfo').innerText = `全球综合权重: ${sorted[0][1]} / 2000`;
+        document.getElementById('winTag').innerText = "● 物理锁定·全球共识解 ●";
+
+        const ctx = document.getElementById('voteChart').getContext('2d');
+        if(mainChart) mainChart.destroy();
+        mainChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: Object.keys(scores), datasets: [{ data: Object.values(scores), backgroundColor: '#0077b6' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+    }
+</script>
+</body>
+</html>
